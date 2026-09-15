@@ -1,3 +1,5 @@
+# Here basically we are using the official Jenkins image and adding some extra tools to it, like Maven and Podman. We also install the plugins that we need for our POC.
+
 FROM jenkins/jenkins:lts-jdk17
 
 USER root

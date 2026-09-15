@@ -35,7 +35,7 @@ pipeline {
             steps {
                 withCredentials([string(credentialsId: 'sonar-token', variable: 'SONAR_TOKEN')]) {
                     sh '''
-                        mvn -B sonar:sonar \
+                        mvn -B org.sonarsource.scanner.maven:sonar-maven-plugin:5.8.0.7211:sonar \
                           -Dsonar.projectKey=jenkins-springboot-ci \
                           -Dsonar.host.url=http://sonarqube:9000 \
                           -Dsonar.token="$SONAR_TOKEN"

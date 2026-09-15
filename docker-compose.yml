@@ -1,12 +1,15 @@
 services:
   jenkins:
     build:
-      context: ./jenkins
+      context: ./jenkins # This is the path to the directory containing the Dockerfile for the Jenkins service. The Dockerfile is located in the 'jenkins' directory relative to the location of this docker-compose.yml file. So basically using the custom Jenkins image that we created in the Dockerfile, which is based on the official Jenkins image but with some extra tools and plugins installed.
       dockerfile: Dockerfile
     container_name: ci-jenkins
+    # Match the mounted Podman socket's group (10 on this Podman machine).
+    group_add:
+      - "${PODMAN_SOCKET_GID:-10}"
     ports:
       - "8080:8080"
-      - "50000:50000"
+      - "50000:50000" # TCP connection for inbound Jenkins build agents connecting to the controller, but in this POC we are not using it. Your current POC runs builds inside the Jenkins container, so it does not need the 50000:50000 mapping. Publishing that port does not create an agent.
     volumes:
       - jenkins_home:/var/jenkins_home
       - ${PODMAN_SOCKET_PATH:-/run/podman/podman.sock}:/run/podman/podman.sock
