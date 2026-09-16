@@ -1,0 +1,77 @@
+---
+title: Jenkins Spring Boot POC — Local CI Architecture
+config:
+  theme: base
+  themeVariables:
+    fontFamily: Segoe UI, Arial, sans-serif
+    fontSize: 17px
+    primaryTextColor: '#172b4d'
+    lineColor: '#64748b'
+    clusterBkg: '#f8fafc'
+    clusterBorder: '#cbd5e1'
+  flowchart:
+    curve: basis
+    nodeSpacing: 30
+    rankSpacing: 55
+    htmlLabels: true
+    wrappingWidth: 360
+---
+flowchart TB
+    DEV["Developer / Git Bash<br/>Push code • Build Now • Manual app run"]
+    GIT["Git repository<br/>src/ • pom.xml • Jenkinsfile<br/>Dockerfile • jenkins/ • docker-compose.yml"]
+    COMPOSE["podman compose up -d --build<br/>Starts Jenkins and SonarQube"]
+    DEV -->|git push| GIT
+    DEV --> COMPOSE
+
+    subgraph MACHINE["Podman machine · Linux"]
+        direction TB
+        subgraph NET["ci-network"]
+            JENKINS["Jenkins · ci-jenkins<br/>Controller + local build executor<br/>Custom image: jenkins/Dockerfile + plugins.txt<br/>Java 17 • Maven • Podman CLI"]
+            SONAR["SonarQube · ci-sonarqube<br/>Code analysis<br/>http://sonarqube:9000"]
+            JENKINS -->|"Analysis + token"| SONAR
+        end
+
+        SOCKET["Mounted Podman API socket<br/>/run/podman/podman.sock<br/>CONTAINER_HOST + socket group access"]
+        ENGINE["Podman service<br/>Builds images and starts containers"]
+        IMAGE[("Local application image<br/>jenkins-springboot-ci:BUILD_NUMBER<br/>and :latest<br/>Java 17 + packaged Spring Boot JAR")]
+        TRIVY["Temporary Trivy container<br/>Reads image through Podman socket<br/>HIGH / CRITICAL findings → build fails"]
+        APP["Application container · manual run<br/>java -jar app.jar<br/>Spring Boot / embedded Tomcat<br/>Greeting API + health endpoint"]
+        JDATA[("jenkins_home volume<br/>Jobs • credentials • build history<br/>Test reports • archived JARs")]
+        SDATA[("SonarQube volumes<br/>Data • extensions • logs")]
+
+        JENKINS -->|"Podman commands"| SOCKET
+        SOCKET --> ENGINE
+        ENGINE -->|"Root Dockerfile + target/*.jar"| IMAGE
+        ENGINE -->|"Launch scanner"| TRIVY
+        IMAGE -.->|"Image contents"| TRIVY
+        TRIVY -.->|"Report + exit code"| JENKINS
+        IMAGE -->|"Manual: podman run -p 8081:8080"| APP
+        JENKINS --- JDATA
+        SONAR --- SDATA
+    end
+
+    COMPOSE --> JENKINS
+    COMPOSE --> SONAR
+    GIT -->|"checkout scm"| JENKINS
+
+    PIPELINE["JENKINSFILE · CI SEQUENCE<br/>Checkout → Tests → Package JAR<br/>→ SonarQube → Image build → Trivy<br/>Post actions: status + cleanWs()"]
+    JENKINS -.->|"Runs pipeline"| PIPELINE
+
+    ACCESS["LOCAL ACCESS<br/>Jenkins: localhost:8080 · SonarQube: localhost:9000<br/>Application: localhost:8081/api/greetings and /actuator/health<br/>Agent port 50000 is mapped but unused in this POC"]
+    SCOPE["CURRENT SCOPE: CI + manual application run<br/>No registry push, Kubernetes, Argo CD, or automatic deployment.<br/>Workspace cleanup preserves volumes and built images.<br/>Post actions also run after failure; SonarQube quality gate is not explicitly enforced."]
+
+    APP ~~~ ACCESS
+    ACCESS ~~~ SCOPE
+
+    classDef tool fill:#eaf2ff,stroke:#3974c6,color:#16345c,stroke-width:2px;
+    classDef storage fill:#fff5df,stroke:#c99935,color:#594318,stroke-width:2px;
+    classDef app fill:#e4f5ee,stroke:#308767,color:#174936,stroke-width:2px;
+    classDef scan fill:#fff0eb,stroke:#c67852,color:#703b23,stroke-width:2px;
+    classDef note fill:#f1f5f9,stroke:#94a3b8,color:#334155;
+    class DEV,GIT,COMPOSE,JENKINS,SOCKET,ENGINE,PIPELINE tool;
+    class IMAGE,JDATA,SDATA storage;
+    class APP app;
+    class SONAR,TRIVY scan;
+    class ACCESS,SCOPE note;
+
+
