@@ -1,0 +1,49 @@
+---
+title: Spring Boot POC — High-Level Architecture
+config:
+  theme: base
+  themeVariables:
+    fontFamily: Segoe UI, Arial, sans-serif
+    fontSize: 20px
+    lineColor: '#64748b'
+    edgeLabelBackground: '#ffffff'
+    clusterBkg: '#f8fafc'
+    clusterBorder: '#cbd5e1'
+  flowchart:
+    curve: basis
+    nodeSpacing: 45
+    rankSpacing: 65
+    wrappingWidth: 300
+---
+flowchart LR
+    GIT["Git Repository<br/>Application code + Jenkinsfile"]
+
+    subgraph LOCAL["Local Podman"]
+        JENKINS["Jenkins CI<br/>Checkout → Test → Package"]
+        SONAR["SonarQube<br/>Code analysis"]
+        BUILD["Podman Build<br/>Create application image"]
+        TRIVY["Trivy<br/>Scan image vulnerabilities"]
+        APP["Spring Boot Application<br/>Greeting API + health endpoint<br/>localhost:8081"]
+
+        JENKINS --> SONAR
+        SONAR -->|"Pipeline continues"| BUILD
+        BUILD --> TRIVY
+        TRIVY -.->|"After scan passes:<br/>manual podman run"| APP
+    end
+
+    GIT -->|"Jenkins Build Now"| JENKINS
+
+    classDef source fill:#eef2ff,stroke:#6366f1,color:#312e81,stroke-width:2px;
+    classDef ci fill:#eaf2ff,stroke:#3974c6,color:#16345c,stroke-width:2px;
+    classDef check fill:#fff5df,stroke:#c99935,color:#594318,stroke-width:2px;
+    classDef app fill:#e4f5ee,stroke:#308767,color:#174936,stroke-width:2px;
+    class GIT source;
+    class JENKINS,BUILD ci;
+    class SONAR,TRIVY check;
+    class APP app;
+
+%% Arrows show workflow order, not direct service-to-service calls.
+%% Jenkins orchestrates analysis, image building, and scanning.
+%% SonarQube analysis is submitted without an explicit quality-gate wait.
+%% HIGH/CRITICAL Trivy findings fail CI; deployment is a separate manual step.
+%% Kubernetes, Argo CD, AWS, and automatic deployment are not configured.
